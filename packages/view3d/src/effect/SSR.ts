@@ -1,32 +1,44 @@
-import { SSRPass } from "three/examples/jsm/postprocessing/SSRPass";
 import View3D from "../View3D";
 import View3DEffect from "./View3DEffect";
-
+import { Reflector } from "three/examples/jsm/objects/ReflectorForSSRPass";
+import { SSRPass } from "three/examples/jsm/postprocessing/SSRPass";
+import * as THREE from "three";
 
 export interface SSROptions {
-
+  selects: THREE.Mesh[] | null;
+  isPerspectiveCamera?: boolean | undefined;
+  isBouncing?: boolean | undefined;
+  groundReflector: Reflector | null;
 }
-
 class SSR implements View3DEffect {
 
   private _ssrPass: SSRPass | null;
 
-  constructor() {
+  private _options: SSROptions;
+
+  constructor({ selects = null, isPerspectiveCamera, isBouncing, groundReflector = null }: Partial<SSROptions> = {}) {
 
     this._ssrPass = null;
 
+    this._options = {
+      selects,
+      groundReflector,
+      isBouncing,
+      isPerspectiveCamera
+    };
+
   }
-  public async init(view3D: View3D): Promise<void> {
+  public async init(view3D: View3D) {
     const renderer = view3D.renderer.threeRenderer;
     const scene = view3D.scene.root;
     const camera = view3D.camera.threeCamera;
 
-    console.log(this._ssrPass);
+    const { selects, groundReflector, isBouncing, isPerspectiveCamera } = this._options;
+    this._ssrPass = new SSRPass({ groundReflector, selects, renderer, scene, camera, isBouncing, isPerspectiveCamera });
 
-    this._ssrPass = new SSRPass({ groundReflector: null, selects: null, renderer, scene, camera });
+
   }
   public getPass() {
-    console.log(this._ssrPass);
     return this._ssrPass;
   }
 
