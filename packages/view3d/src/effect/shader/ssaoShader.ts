@@ -31,6 +31,8 @@ export const SSAOShader = {
 		uniform float minDistance; // avoid artifacts caused by neighbour fragments with minimal depth difference
 		uniform float maxDistance; // avoid the influence of fragments which are too far away
 
+    uniform float strength;
+
 		varying vec2 vUv;
 
 		#include <packing>
@@ -132,7 +134,7 @@ export const SSAOShader = {
 
 			occlusion = clamp( occlusion / float( KERNEL_SIZE ), 0.0, 1.0 );
 
-			gl_FragColor = vec4( vec3( 1.0 - occlusion ), 1.0 );
+			gl_FragColor = vec4( vec3( 1.0 - (occlusion * strength) ), 1.0 );
 
 		}`
 };

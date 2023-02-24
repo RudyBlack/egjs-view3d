@@ -1,23 +1,14 @@
 import clsx from "clsx";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
-import View3D, { SSR, SAO, Bloom, View3DOptions, Gamma } from "../View3D";
-import {
-  BloomEffect,
-  BrightnessContrastEffect,
-  EffectComposer as EffectComposerLib,
-  EffectPass,
-  RenderPass as RenderPassLib,
-  SMAAEffect,
-  ToneMappingEffect,
-  ToneMappingMode,
-} from "postprocessing";
-import * as THREE from "three";
+import View3D, { Bloom, Gamma, SSAO, View3DOptions } from "../View3D";
+import { BloomEffect, BrightnessContrastEffect, EffectComposer as EffectComposerLib, EffectPass, RenderPass as RenderPassLib, SMAAEffect, ToneMappingEffect, ToneMappingMode, } from "postprocessing";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
-import { GammaCorrectionShader } from "three/examples/jsm/shaders/GammaCorrectionShader";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
+
 import { SSRPass } from "three/examples/jsm/postprocessing/SSRPass";
-import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass";
+
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader";
+
+import { Pane } from 'tweakpane';
 
 type EffectType = "false" | "basic" | "three" | "postProcessing-library" | "hybrid";
 
@@ -47,10 +38,48 @@ const PostProcessing = ({
 
     const view3D = ref.current.view3D;
 
+    const ssao = new SSAO();
+
     view3D.loadEffects(
-      new Bloom({ strength: 1, radius: 1, threshold: 0.3 }),
-      // ({ canvasSize }) => new UnrealBloomPass(canvasSize, 1, 1.5, 0.3),
+      ssao,
+      // new Gamma(),
+      // new ShaderPass(FXAAShader)
     );
+
+    // GUI
+    const pane = new Pane({ container: view3D.rootEl });
+    const PARAMS = {
+      kernelRadius: 0.1,
+      // kernelSize: 32,
+      minDistance: 0.001,
+      maxDistance: 0.02,
+      intensive: 2
+    };
+    for (const paramsKey in PARAMS) {
+
+      pane.addBlade({
+        view: 'slider',
+        label: paramsKey,
+        min: 0.001,
+        max: 100,
+        value: PARAMS[ paramsKey ],
+      })
+    }
+
+    pane.on('change', (ev) => {
+      // @ts-ignore
+      const label = ev.target.label;
+
+      const ssao = view3D.effect.effects[ 0 ];
+
+      console.log(ssao);
+
+      ssao._ssaoPass[ label ] = Number(ev.value);
+
+      view3D.renderer.renderSingleFrame();
+
+    })
+
 
     view3D.on("loadError", (e) => {
       console.log(e);
@@ -100,7 +129,6 @@ const PostProcessing = ({
       );
 
 
-      console.log(effectComposer, "111");
       return effectComposer;
     });
 
@@ -113,7 +141,7 @@ const PostProcessing = ({
 
   return (
     <>
-      <div className={clsx("view3d-wrapper", "mb-2")}>
+      <div className={ clsx("view3d-wrapper", "mb-2") }>
         <View3D
           { ...options }
           ref={ ref }

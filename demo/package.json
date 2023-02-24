@@ -19,6 +19,7 @@
     "@docusaurus/preset-classic": "^2.0.0-beta.17",
     "@mdx-js/react": "^1.6.21",
     "@svgr/webpack": "^5.5.0",
+    "@tweakpane/core": "^1.1.4",
     "clsx": "^1.1.1",
     "file-loader": "^6.2.0",
     "file-saver": "^2.0.5",
@@ -32,6 +33,7 @@
     "simple-dropzone": "^0.8.1",
     "sweetalert2": "^11.3.1",
     "three": "^0.134.0",
+    "tweakpane": "^3.1.4",
     "url-loader": "^4.1.1"
   },
   "browserslist": {

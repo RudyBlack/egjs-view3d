@@ -97,10 +97,10 @@ class Renderer {
       preserveDrawingBuffer: true
     });
 
-    renderer.toneMapping = view3D.toneMapping as THREE.ToneMapping;
-    renderer.toneMappingExposure = view3D.exposure;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.setClearColor(0x000000, 0);
+    // renderer.toneMapping = view3D.toneMapping as THREE.ToneMapping;
+    // renderer.toneMappingExposure = view3D.exposure;
+    // renderer.outputEncoding = THREE.sRGBEncoding;
+    // renderer.setClearColor(0x000000, 0);
 
     this._halfFloatAvailable = checkHalfFloatAvailable(renderer);
     this._renderer = renderer;

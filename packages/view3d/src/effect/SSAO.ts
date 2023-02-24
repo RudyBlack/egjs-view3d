@@ -48,8 +48,7 @@ class SSAOPass extends Pass {
   private _kernel: any[];
   private _noiseTexture: DataTexture;
   private output: number;
-  private minDistance: number;
-  private maxDistance: number;
+
   private _visibilityCache: Map<any, any>;
   private _normalRenderTarget: THREE.WebGLRenderTarget;
   private _ssaoRenderTarget: THREE.WebGLRenderTarget;
@@ -61,24 +60,46 @@ class SSAOPass extends Pass {
   private _copyMaterial: ShaderMaterial;
   private _originalClearColor: Color;
 
+  private _minDistance: number;
+  private _maxDistance: number;
+
+  private _intensive: number;
+
+  public set intensive(val) {
+    this._intensive = val;
+  }
+
+  public set kernelRadius(val) {
+    this._kernelRadius = val;
+  }
+
+  public set minDistance(val) {
+    this._minDistance = val;
+  }
+
+  public set maxDistance(val) {
+    this._maxDistance = val;
+  }
+
+
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, width, height) {
     super();
+
+    this.output = 1;
 
     this._width = width;
     this._height = height;
     this._scene = scene;
     this._camera = camera;
 
-
     this._clear = true;
-    this._kernelRadius = 8;
+    this._kernelRadius = 0.8;
     this._kernelSize = 32;
     this._kernel = [];
 
-    this.output = 0;
-
-    this.minDistance = 0.005;
-    this.maxDistance = 0.1;
+    this._minDistance = 0.01;
+    this._maxDistance = 1;
+    this._intensive = 2;
 
     this._visibilityCache = new Map();
 
@@ -111,8 +132,6 @@ class SSAOPass extends Pass {
 
     this._normalMaterial = this._setNormalMaterial();
 
-    this._depthRenderMaterial = this._setDepthRenderMaterial();
-
     this._blurMaterial = this._setBlurMaterial();
 
     // material for rendering the content of a render target
@@ -121,6 +140,7 @@ class SSAOPass extends Pass {
     this._fsQuad = new FullScreenQuad();
 
     this._originalClearColor = new Color();
+
   }
 
   render(renderer: WebGLRenderer, writeBuffer: WebGLRenderTarget, readBuffer: WebGLRenderTarget, deltaTime: number, maskActive: boolean) {
@@ -130,29 +150,82 @@ class SSAOPass extends Pass {
     renderer.clear();
     renderer.render(this._scene, this._camera);
 
+    // render normals and depth (honor only meshes, points and lines do not contribute to SSAO)
+
     this.overrideVisibility();
     this.renderOverride(renderer, this._normalMaterial, this._normalRenderTarget, 0x7777ff, 1.0);
     this.restoreVisibility();
 
+    // render SSAO
+
     this._ssaoMaterial.uniforms[ "kernelRadius" ].value = this._kernelRadius;
-    this._ssaoMaterial.uniforms[ "minDistance" ].value = this.minDistance;
-    this._ssaoMaterial.uniforms[ "maxDistance" ].value = this.maxDistance;
+    this._ssaoMaterial.uniforms[ "minDistance" ].value = this._minDistance;
+    this._ssaoMaterial.uniforms[ "maxDistance" ].value = this._maxDistance;
     this.renderPass(renderer, this._ssaoMaterial, this._ssaoRenderTarget);
+
+    // render blur
 
     this.renderPass(renderer, this._blurMaterial, this._blurRenderTarget);
 
 
-    this._copyMaterial.uniforms[ "tDiffuse" ].value = this._ssaoRenderTarget.texture;
-    this._copyMaterial.blending = NoBlending;
-    this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+    switch (this.output) {
 
-    // this._copyMaterial.uniforms[ "tDiffuse" ].value = this._beautyRenderTarget.texture;
-    // this._copyMaterial.blending = NoBlending;
-    // this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
-    //
-    // this._copyMaterial.uniforms[ "tDiffuse" ].value = this._blurRenderTarget.texture;
-    // this._copyMaterial.blending = CustomBlending;
-    // this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+      case 1:
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._ssaoRenderTarget.texture;
+        this._copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      case 2:
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._blurRenderTarget.texture;
+        this._copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      case 3:
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._beautyRenderTarget.texture;
+        this._copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      case 4:
+
+        this.renderPass(renderer, this._depthRenderMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      case 5:
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._normalRenderTarget.texture;
+        this._copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      case 0:
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._beautyRenderTarget.texture;
+        this._copyMaterial.blending = NoBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        this._copyMaterial.uniforms[ "tDiffuse" ].value = this._blurRenderTarget.texture;
+        this._copyMaterial.blending = CustomBlending;
+        this.renderPass(renderer, this._copyMaterial, this.renderToScreen ? null : writeBuffer);
+
+        break;
+
+      default:
+        console.warn("THREE.SSAOPass: Unknown output type.");
+
+    }
+
+
   }
 
   restoreVisibility() {
@@ -190,7 +263,7 @@ class SSAOPass extends Pass {
 
   // 렌더타겟 설정
   // fsQuad 매터리얼 설정
-  renderPass(renderer, passMaterial, renderTarget, clearColor?, clearAlpha?) {
+  renderPass(renderer: WebGLRenderer, passMaterial: THREE.Material, renderTarget: WebGLRenderTarget | null, clearColor?, clearAlpha?) {
 
     // save original state
     renderer.getClearColor(this._originalClearColor);
@@ -252,7 +325,7 @@ class SSAOPass extends Pass {
   }
 
   private _setNoiseTexture() {
-    const width = 4, height = 4;
+    const width = this._width * window.devicePixelRatio, height = this._height * window.devicePixelRatio;
 
     if (SimplexNoise === undefined) {
 
@@ -321,7 +394,6 @@ class SSAOPass extends Pass {
       blending: NoBlending
     });
 
-    console.log(this._camera.near, this._camera.far);
     depthRenderMaterial.uniforms[ "tDepth" ].value = this._normalRenderTarget.depthTexture;
     depthRenderMaterial.uniforms[ "cameraNear" ].value = this._camera.near;
     depthRenderMaterial.uniforms[ "cameraFar" ].value = this._camera.far;
@@ -373,12 +445,18 @@ class SSAOPass extends Pass {
         "kernelRadius": { value: 16 },
         "minDistance": { value: 0.0001 },
         "maxDistance": { value: 1 },
+        "strength": { value: 1.0 },
+
       },
       vertexShader: SSAOShader.vertexShader,
       fragmentShader: SSAOShader.fragmentShader,
       blending: NoBlending
     });
 
+    ssaoMaterial.uniforms[ "strength" ].value = this._intensive;
+    ssaoMaterial.uniforms[ "kernelRadius" ].value = this._kernelRadius;
+    ssaoMaterial.uniforms[ "minDistance" ].value = this._minDistance;
+    ssaoMaterial.uniforms[ "maxDistance" ].value = this._maxDistance;
     ssaoMaterial.uniforms[ "tDiffuse" ].value = this._beautyRenderTarget.texture;
     ssaoMaterial.uniforms[ "tNormal" ].value = this._normalRenderTarget.texture;
     ssaoMaterial.uniforms[ "tDepth" ].value = this._normalRenderTarget.depthTexture;
@@ -416,5 +494,6 @@ class SSAOPass extends Pass {
 
 
 }
+
 
 export default SSAO;
